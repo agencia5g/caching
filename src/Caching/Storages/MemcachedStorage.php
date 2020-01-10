@@ -16,7 +16,7 @@ use Nette\Caching\Cache;
 /**
  * Memcached storage using memcached extension.
  */
-class MemcachedStorage implements Nette\Caching\IStorage, Nette\Caching\IBulkReader
+class MemcachedStorage implements Nette\Caching\Storage, Nette\Caching\BulkReader
 {
 	use Nette\SmartObject;
 
@@ -32,7 +32,7 @@ class MemcachedStorage implements Nette\Caching\IStorage, Nette\Caching\IBulkRea
 	/** @var string */
 	private $prefix;
 
-	/** @var IJournal */
+	/** @var Journal */
 	private $journal;
 
 
@@ -45,7 +45,7 @@ class MemcachedStorage implements Nette\Caching\IStorage, Nette\Caching\IBulkRea
 	}
 
 
-	public function __construct(string $host = 'localhost', int $port = 11211, string $prefix = '', IJournal $journal = null)
+	public function __construct(string $host = 'localhost', int $port = 11211, string $prefix = '', Journal $journal = null)
 	{
 		if (!static::isAvailable()) {
 			throw new Nette\NotSupportedException("PHP extension 'memcached' is not loaded.");
