@@ -33,8 +33,17 @@ class Cache
 		NAMESPACES = 'namespaces',
 		ALL = 'all';
 
+	public const
+		EVENT_HIT = 'hit',
+		EVENT_MISS = 'miss',
+		EVENT_SAVE = 'save',
+		EVENT_REMOVE = 'remove';
+
 	/** @internal */
 	public const NAMESPACE_SEPARATOR = "\x00";
+
+	/** @var array */
+	public $onEvent;
 
 	/** @var Storage */
 	private $storage;
@@ -88,8 +97,9 @@ class Cache
 	{
 		$storageKey = $this->generateKey($key);
 		$data = $this->storage->read($storageKey);
+		$this->onEvent($this, $data === null ? self::EVENT_MISS : self::EVENT_HIT, $key);
 		if ($data === null && $generator) {
-			$this->storage->lock($storageKey);			
+			$this->storage->lock($storageKey);
 			try {
 				$data = $generator(...[&$dependencies]);
 			} catch (\Throwable $e) {
@@ -134,12 +144,14 @@ class Cache
 		foreach ($keys as $i => $key) {
 			$storageKey = $storageKeys[$i];
 			if (isset($cacheData[$storageKey])) {
+				$this->onEvent($this, self::EVENT_HIT, $key);
 				$result[$key] = $cacheData[$storageKey];
 			} elseif ($generator) {
 				$result[$key] = $this->load($key, function (&$dependencies) use ($key, $generator) {
 					return $generator(...[$key, &$dependencies]);
 				});
 			} else {
+				$this->onEvent($this, self::EVENT_MISS, $key);
 				$result[$key] = null;
 			}
 		}
@@ -165,27 +177,30 @@ class Cache
 	 */
 	public function save($key, $data, array $dependencies = null)
 	{
-		$key = $this->generateKey($key);
+		$storageKey = $this->generateKey($key);
 
 		if ($data instanceof \Closure) {
 			trigger_error(__METHOD__ . '() closure argument is deprecated.', E_USER_WARNING);
-			$this->storage->lock($key);
+			$this->storage->lock($storageKey);
 			try {
 				$data = $data(...[&$dependencies]);
 			} catch (\Throwable $e) {
-				$this->storage->remove($key);
+				$this->storage->remove($storageKey);
 				throw $e;
 			}
 		}
 
 		if ($data === null) {
-			$this->storage->remove($key);
+			$this->storage->remove($storageKey);
+			$this->onEvent($this, self::EVENT_REMOVE, $key);
 		} else {
 			$dependencies = $this->completeDependencies($dependencies);
 			if (isset($dependencies[self::EXPIRATION]) && $dependencies[self::EXPIRATION] <= 0) {
-				$this->storage->remove($key);
+				$this->storage->remove($storageKey);
+				$this->onEvent($this, self::EVENT_REMOVE, $key);
 			} else {
-				$this->storage->write($key, $data, $dependencies);
+				$this->storage->write($storageKey, $data, $dependencies);
+				$this->onEvent($this, self::EVENT_SAVE, $key);
 			}
 			return $data;
 		}

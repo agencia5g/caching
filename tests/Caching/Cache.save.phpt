@@ -18,9 +18,13 @@ require __DIR__ . '/Cache.php';
 // save value with dependencies
 $storage = new testStorage;
 $cache = new Cache($storage, 'ns');
+$cache->onEvent[] = function (...$args) use (&$event) {
+	$event[] = $args;
+};
 $dependencies = [Cache::TAGS => ['tag']];
 
 $cache->save('key', 'value', $dependencies);
+Assert::same([[$cache, $cache::EVENT_SAVE, 'key']], $event);
 
 $res = $cache->load('key');
 Assert::same('value', $res['data']);
